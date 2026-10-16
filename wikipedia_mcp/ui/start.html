@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wikipedia kh</title>
+<style>
+:root{color-scheme:light dark;font:16px system-ui,sans-serif;color:var(--color-text-primary,#202124);background:var(--color-background-primary,#fff)}
+*{box-sizing:border-box}body{margin:0;padding:24px}main{max-width:620px;margin:auto}h1{font-size:26px;margin:0 0 8px}p{line-height:1.5;color:var(--color-text-secondary,#646970)}
+label{display:block;margin:18px 0 8px;font-weight:600}input,button{font:inherit;border-radius:10px;padding:13px;max-width:100%}input{width:100%;border:1px solid #8888;background:transparent;color:inherit}button{border:0;cursor:pointer;background:#2458b8;color:white;margin-top:20px}button:disabled{opacity:.5;cursor:wait}button.secondary{background:transparent;color:inherit;border:1px solid #8888;margin-right:10px}
+.options label{display:flex;align-items:center;gap:12px;padding:16px;border:1px solid #8888;border-radius:12px;cursor:pointer;margin:12px 0;font-weight:400}.options input{width:auto}.options label:has(input:checked){border-color:#2458b8;background:#2458b811}.step{font-size:13px;margin:24px 0 8px}section[hidden]{display:none}#status{font-size:14px;min-height:24px}.summary{padding:16px;border:1px solid #8888;border-radius:12px;white-space:pre-wrap}
+@media(prefers-color-scheme:dark){:root{color:var(--color-text-primary,#eee);background:var(--color-background-primary,#171717)}p{color:var(--color-text-secondary,#b9b9b9)}}@media(max-width:420px){body{padding:16px}h1{font-size:23px}}
+</style>
+</head>
+<body><main>
+<h1>Wikipedia kh</h1><p>Explore a topic and choose how you want to read it.</p>
+<section id="topic-step"><p class="step">Step 1 · Topic</p><form id="topic-form"><label for="topic">What topic would you like to explore?</label><input id="topic" name="topic" placeholder="For example, neural networks" maxlength="400" required autocomplete="off"><button type="submit">Continue</button></form></section>
+<section id="format-step" hidden><p class="step">Step 2 · Output</p><form id="format-form"><h2>What would you like?</h2><p id="chosen-topic"></p><div class="options">
+<label><input type="radio" name="format" value="search results and links" required>Search results and links</label>
+<label><input type="radio" name="format" value="article summaries">Article summaries</label>
+<label><input type="radio" name="format" value="full article text">Full article text</label>
+<label><input type="radio" name="format" value="official Wikipedia PDFs">Official Wikipedia PDFs</label>
+</div><button type="button" class="secondary" data-back="topic-step">Back</button><button type="submit">Continue</button></form></section>
+<section id="count-step" hidden><p class="step">Step 3 · PDF count</p><form id="count-form"><label for="count">How many PDF files would you like?</label><input id="count" type="number" min="1" max="500" step="1" required inputmode="numeric"><p>Choose 1–500 articles per batch. Your request will include individual PDFs and a combined PDF.</p><button type="button" class="secondary" data-back="format-step">Back</button><button type="submit">Get PDFs</button></form></section>
+<section id="done-step" hidden><h2>Request sent</h2><p class="summary" id="summary"></p><p>Your results will appear in the conversation.</p><button type="button" id="start-again">Explore another topic</button></section>
+<p id="status" role="status" aria-live="polite">Connecting…</p>
+</main>
+<script>
+const state={topic:'',format:'',count:null};let sequence=0,connected=false,hostIssue='Connecting…';const pending=new Map();
+function notify(method,params){parent.postMessage({jsonrpc:'2.0',method,params},'*')}
+function rpc(method,params){return new Promise((resolve,reject)=>{const id=++sequence;const timer=setTimeout(()=>{pending.delete(id);reject(new Error('The connection timed out. Please reopen Wikipedia kh.'))},20000);pending.set(id,{resolve,reject,timer});parent.postMessage({jsonrpc:'2.0',id,method,params},'*')})}
+window.addEventListener('message',event=>{if(event.source!==parent||!event.data||event.data.jsonrpc!=='2.0')return;const message=event.data;if(pending.has(message.id)){const item=pending.get(message.id);clearTimeout(item.timer);pending.delete(message.id);message.error?item.reject(new Error(message.error.message)):item.resolve(message.result)}else if(message.method==='ui/notifications/tool-input'){applyInput(message.params?.arguments||{})}else if(message.method==='ui/resource-teardown'&&message.id!==undefined){parent.postMessage({jsonrpc:'2.0',id:message.id,result:{}},'*')}});
+function status(text){document.querySelector('#status').textContent=text}
+function show(id){document.querySelectorAll('section').forEach(section=>section.hidden=section.id!==id);notify('ui/notifications/size-changed',{height:document.body.scrollHeight});const input=document.querySelector('#'+id+' input');if(input)input.focus()}
+function applyInput(args){if(args.topic){state.topic=args.topic;document.querySelector('#topic').value=args.topic;document.querySelector('#chosen-topic').textContent=args.topic;show('format-step')}if(args.output){const radio=Array.from(document.querySelectorAll('input[name="format"]')).find(input=>input.value===args.output);if(radio){radio.checked=true;state.format=args.output;if(state.topic&&args.output==='official Wikipedia PDFs')show('count-step')}}if(args.pdf_count){document.querySelector('#count').value=args.pdf_count;state.count=args.pdf_count}}
+function requestText(){if(state.format==='official Wikipedia PDFs')return `Wikipedia form submission. Download ${state.count} official Wikipedia article PDFs about ${state.topic}. Provide both individual PDFs in a ZIP and a combined PDF with article bookmarks. Leave at least ten seconds between downloads.`;return `Wikipedia form submission. Use Wikipedia to provide ${state.format} about ${state.topic}.`}
+async function submit(){if(!connected){status(hostIssue);return}const text=requestText();const buttons=document.querySelectorAll('button[type="submit"]');buttons.forEach(button=>button.disabled=true);try{status('Sending your request…');await rpc('ui/message',{role:'user',content:[{type:'text',text}]});document.querySelector('#summary').textContent=text;show('done-step');status('')}catch(error){status(error.message)}finally{buttons.forEach(button=>button.disabled=false)}}
+document.querySelector('#topic-form').addEventListener('submit',event=>{event.preventDefault();state.topic=document.querySelector('#topic').value.trim();if(!state.topic)return;document.querySelector('#chosen-topic').textContent=state.topic;show('format-step')});
+document.querySelector('#format-form').addEventListener('submit',event=>{event.preventDefault();state.format=new FormData(event.target).get('format');if(state.format==='official Wikipedia PDFs')show('count-step');else submit()});
+document.querySelector('#count-form').addEventListener('submit',event=>{event.preventDefault();const value=Number(document.querySelector('#count').value);if(!Number.isSafeInteger(value)||value<=0||value>500){status('Enter a whole number from 1 to 500.');return}state.count=value;submit()});
+document.querySelectorAll('[data-back]').forEach(button=>button.addEventListener('click',()=>show(button.dataset.back)));
+document.querySelector('#start-again').addEventListener('click',()=>{state.topic='';state.format='';state.count=null;document.querySelectorAll('form').forEach(form=>form.reset());show('topic-step')});
+rpc('ui/initialize',{appInfo:{name:'wikipedia-kh',version:'1.0.0'},appCapabilities:{availableDisplayModes:['inline','fullscreen']},protocolVersion:'2026-01-26'}).then(result=>{notify('ui/notifications/initialized',{});if(result.protocolVersion&&result.protocolVersion!=='2026-01-26'){hostIssue='Please update your host to use this Wikipedia form.';status(hostIssue);return}if(!result.hostCapabilities?.message?.text){hostIssue='This host cannot submit forms. Please type your topic and choice in the conversation.';status(hostIssue);return}connected=true;status('');notify('ui/notifications/size-changed',{height:document.body.scrollHeight})}).catch(error=>{hostIssue=error.message;status(hostIssue)});
+</script></body></html>

@@ -52,7 +52,7 @@ dev = [
 [tool.setuptools]
 packages.find.where = ["."]
 packages.find.include = ["wikipedia_mcp*"]
-package-data.wikipedia_mcp = ["py.typed"]
+package-data.wikipedia_mcp = ["py.typed", "ui/*.html"]
 license-files = ["LICENSE"] 
 
 [tool.black]

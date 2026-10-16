@@ -36,11 +36,8 @@ from wikipedia_mcp.wikipedia_client import WikipediaClient
 
 logger = logging.getLogger(__name__)
 
-_READ_ONLY_TOOL_ANNOTATIONS = ToolAnnotations(
-    readOnlyHint=True,
-    destructiveHint=False,
-    idempotentHint=True,
-    openWorldHint=True,
+_READ_ONLY_TOOL_ANNOTATIONS = ToolAnnotations.model_validate(
+    {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True}
 )
 
 
@@ -468,4 +465,7 @@ def create_server(
         coordinates_data = wikipedia_client.get_coordinates(title)
         return coordinates_data
 
+    from wikipedia_mcp.app import register_app
+
+    register_app(server)
     return server
